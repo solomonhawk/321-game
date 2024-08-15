@@ -1,5 +1,5 @@
 import { ObservableObject } from "@legendapp/state";
-import { Computed, For, Memo, useSelector } from "@legendapp/state/react";
+import { Computed, For, Memo, observer } from "@legendapp/state/react";
 import cx from "clsx";
 import {
   applyOperation,
@@ -16,7 +16,7 @@ export function Game() {
         <OperationHeading />
 
         <div className="flex gap-1">
-          <For each={game$.columns} item={Column} />
+          <For each={game$.columns} item={Column} optimized />
         </div>
 
         <MoveCount />
@@ -51,18 +51,19 @@ function MoveCount() {
   );
 }
 
-function Column({ item }: { item: ObservableObject<Column> }) {
-  const previewsEnabled = useSelector(() => game$.previews.get());
-  const dimensions = useSelector(() => game$.dimensions.get());
-  const filled = useSelector(() => item.filled.get());
-  const currentOperation = useSelector(() => game$.currentOperation.get());
-  const isWon = useSelector(() => game$.status.get() === "won");
-  const isEnabled = useSelector(
-    () => canApplyOperation(dimensions, item.get(), currentOperation) && !isWon
-  );
-  const nextColumnState = useSelector(() =>
-    applyOperation(item.get(), currentOperation)
-  );
+const Column = observer(function Column({
+  item,
+}: {
+  item: ObservableObject<Column>;
+}) {
+  const previewsEnabled = game$.previews.get();
+  const dimensions = game$.dimensions.get();
+  const filled = item.filled.get();
+  const currentOperation = game$.currentOperation.get();
+  const isWon = game$.status.get() === "won";
+  const isEnabled =
+    canApplyOperation(dimensions, item.get(), currentOperation) && !isWon;
+  const nextColumnState = applyOperation(item.get(), currentOperation);
 
   return (
     <button
@@ -91,4 +92,4 @@ function Column({ item }: { item: ObservableObject<Column> }) {
       })}
     </button>
   );
-}
+});
