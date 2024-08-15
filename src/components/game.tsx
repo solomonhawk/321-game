@@ -1,5 +1,5 @@
-import { batch, ObservableObject } from "@legendapp/state";
-import { For, Memo, useSelector } from "@legendapp/state/react";
+import { ObservableObject } from "@legendapp/state";
+import { Computed, For, Memo, useSelector } from "@legendapp/state/react";
 import cx from "clsx";
 import {
   applyOperation,
@@ -7,27 +7,7 @@ import {
   type Column,
   displayOperation,
   game$,
-  nextOperation,
 } from "~/state/game";
-
-// function Row({ item }) {
-//   return <div>{item.text}</div>;
-// }
-// export function Game() {
-//   // 1. Use the For component with an item prop
-//   return <For each={state$.arr} item={Row} />;
-
-//   // 2. Use the For component with a render function as the child
-//   // return (
-//   //     <For each={list}>
-//   //         {item => (
-//   //             <div>
-//   //                 {item.text}
-//   //             </div>
-//   //         )}
-//   //     </div>
-//   // )
-// }
 
 export function Game() {
   return (
@@ -46,11 +26,17 @@ export function Game() {
 }
 
 function OperationHeading() {
-  const currentOperation = useSelector(() => game$.currentOperation.get());
-
   return (
     <h2 className="text-center text-3xl font-bold">
-      {displayOperation(currentOperation)}
+      <Computed>
+        {() => {
+          if (game$.status.get() === "won") {
+            return "You won!";
+          } else {
+            return displayOperation(game$.currentOperation.get());
+          }
+        }}
+      </Computed>
     </h2>
   );
 }
@@ -66,13 +52,15 @@ function MoveCount() {
 }
 
 function Column({ item }: { item: ObservableObject<Column> }) {
-  const height = useSelector(() => game$.dimensions.y.get());
+  const previewsEnabled = useSelector(() => game$.previews.get());
+  const dimensions = useSelector(() => game$.dimensions.get());
   const filled = useSelector(() => item.filled.get());
   const currentOperation = useSelector(() => game$.currentOperation.get());
-  const isEnabled = useSelector(() =>
-    canApplyOperation(game$.get(), item.get(), currentOperation)
+  const isWon = useSelector(() => game$.status.get() === "won");
+  const isEnabled = useSelector(
+    () => canApplyOperation(dimensions, item.get(), currentOperation) && !isWon
   );
-  const nextColumnPreview = useSelector(() =>
+  const nextColumnState = useSelector(() =>
     applyOperation(item.get(), currentOperation)
   );
 
@@ -81,24 +69,22 @@ function Column({ item }: { item: ObservableObject<Column> }) {
       disabled={!isEnabled}
       className="flex flex-col-reverse gap-1 group"
       onClick={() => {
-        batch(() => {
-          item.set(applyOperation(item.get(), currentOperation));
-          game$.currentOperation.set(nextOperation(currentOperation));
-          game$.moveCount.set(game$.moveCount.get() + 1);
-        });
+        game$.applyCurrentOperation(item, nextColumnState);
       }}
     >
-      {new Array(height).fill(0).map((_, i) => {
+      {new Array(dimensions.y).fill(0).map((_, i) => {
         return (
           <div
             key={i}
             className={cx("size-8 rounded-sm", {
-              "bg-white": i < filled,
-              "bg-zinc-500": i >= filled,
-              "group-hover:bg-white/70":
+              "bg-white": i < filled && !isWon,
+              "bg-green-500": i < filled && isWon,
+              "bg-zinc-700": i >= filled,
+              "group-hover:bg-white/40":
                 isEnabled &&
-                ((i >= filled && i < nextColumnPreview.filled) ||
-                  (i < filled && i >= nextColumnPreview.filled)),
+                previewsEnabled &&
+                ((i >= filled && i < nextColumnState.filled) ||
+                  (i < filled && i >= nextColumnState.filled)),
             })}
           />
         );
