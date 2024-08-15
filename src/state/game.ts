@@ -1,4 +1,4 @@
-import { batch, observable, ObservableObject, observe } from "@legendapp/state";
+import { batch, observable, ObservableObject } from "@legendapp/state";
 
 type Dimensions = {
   x: number;
@@ -167,7 +167,7 @@ function generateSolvableBoard({ x, y }: Dimensions): Column[] {
 
     if (canApplyReverseOperation({ x, y }, columns[column], operation)) {
       columns[column] = applyReverseOperation(columns[column], operation);
-      console.log("Applied operation", operation, "to column", column);
+
       operation = previousOperation(operation);
       iterations--;
 
@@ -179,7 +179,3 @@ function generateSolvableBoard({ x, y }: Dimensions): Column[] {
 
   return columns;
 }
-
-observe(() => {
-  console.log(game$.get());
-});
