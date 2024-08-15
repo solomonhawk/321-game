@@ -32,7 +32,7 @@ export const game$ = observable<State & Actions>({
    * State
    */
   status: "playing",
-  previews: false,
+  previews: true,
   moveCount: 0,
   dimensions: {
     x: 10,
