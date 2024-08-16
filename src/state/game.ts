@@ -1,4 +1,5 @@
-import { batch, observable, ObservableObject } from "@legendapp/state";
+import { batch, observable, ObservableObject, observe } from "@legendapp/state";
+import { undoRedo } from "~/helpers/undo";
 
 type Dimensions = {
   x: number;
@@ -8,10 +9,14 @@ type Dimensions = {
 type State = {
   status: "playing" | "won";
   previews: boolean;
-  moveCount: number;
   dimensions: Dimensions;
-  currentOperation: Operation;
-  columns: Column[];
+  undoLimit: number;
+  undoCount: number;
+  state: {
+    moveCount: number;
+    currentOperation: Operation;
+    columns: Column[];
+  };
 };
 
 type Actions = {
@@ -19,6 +24,8 @@ type Actions = {
     column: ObservableObject<Column>,
     nextColumn: Column
   ): void;
+  canUndo(): boolean;
+  undoPreviousOperation(): void;
 };
 
 export type Column = { id: number; filled: number };
@@ -33,31 +40,46 @@ export const game$ = observable<State & Actions>({
    */
   status: "playing",
   previews: true,
-  moveCount: 0,
   dimensions: {
-    x: 10,
-    y: 10,
+    x: 5,
+    y: 7,
   },
-  currentOperation: "add3",
-  columns: generateSolvableBoard({ x: 10, y: 10 }),
+  undoLimit: 3,
+  undoCount: 0,
+  state: {
+    moveCount: 0,
+    currentOperation: "add3",
+    columns: generateSolvableBoard({ x: 5, y: 7 }),
+  },
 
   /**
    * Actions
    */
   applyCurrentOperation(column: ObservableObject<Column>, nextColumn: Column) {
-    const op = game$.currentOperation.get();
+    const op = game$.state.currentOperation.get();
 
     batch(() => {
       column.set(nextColumn);
-      game$.currentOperation.set(nextOperation(op));
-      game$.moveCount.set(game$.moveCount.get() + 1);
+      game$.state.currentOperation.set(nextOperation(op));
+      game$.state.moveCount.set(game$.state.moveCount.get() + 1);
 
-      if (isWinningState(game$.columns.get())) {
+      if (isWinningState(game$.state.columns.get())) {
         game$.status.set("won");
       }
     });
   },
+
+  canUndo(): boolean {
+    return undos$.get() > 0 && game$.undoCount.get() < game$.undoLimit.get();
+  },
+
+  undoPreviousOperation() {
+    game$.undoCount.set(game$.undoCount.get() + 1);
+    undo();
+  },
 });
+
+const { undo, undos$ } = undoRedo(game$.state, { limit: 3 });
 
 function randomOperation(): Operation {
   return operations[Math.floor(Math.random() * operations.length)];
@@ -179,3 +201,9 @@ function generateSolvableBoard({ x, y }: Dimensions): Column[] {
 
   return columns;
 }
+
+observe(game$, (game) => {
+  if (import.meta.env.DEV) {
+    console.log(game.value);
+  }
+});
