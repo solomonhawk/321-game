@@ -9,7 +9,12 @@ import {
   game$,
 } from "~/state/game";
 import { Loop } from "./loop";
-import { ResetIcon } from "@radix-ui/react-icons";
+import {
+  CircleBackslashIcon,
+  CircleIcon,
+  ResetIcon,
+} from "@radix-ui/react-icons";
+import { Fragment } from "react/jsx-runtime";
 
 export function Game() {
   return (
@@ -21,7 +26,9 @@ export function Game() {
           <For each={game$.state.columns} item={Column} optimized />
         </div>
 
-        <Undo />
+        <Computed>
+          {() => (game$.status.get() === "won" ? <Restart /> : <Undo />)}
+        </Computed>
         <MoveCount />
       </div>
     </div>
@@ -44,13 +51,15 @@ function OperationHeading() {
   );
 }
 
-function MoveCount() {
+function Restart() {
   return (
-    <div className="text-center">
-      <p className="font-bold">
-        Moves: <Memo>{game$.state.moveCount}</Memo>
-      </p>
-    </div>
+    <button
+      type="button"
+      onClick={game$.restart}
+      className="text-zinc-900 bg-green-500 border-transparent hover:bg-green-600 active:bg-green-500 text-sm border border-zinc-500 rounded-md px-2 py-1 transition-colors"
+    >
+      Again
+    </button>
   );
 }
 
@@ -62,6 +71,7 @@ const Undo = observer(function Undo() {
   return (
     <div className="flex gap-2 items-center justify-between">
       <button
+        type="button"
         onClick={game$.undoPreviousOperation}
         disabled={!canUndo || isWon}
         className="text-zinc-100 enabled:hover:text-white enabled:hover:bg-zinc-900 enabled:active:bg-zinc-800 disabled:text-zinc-500 disabled:border-zinc-700 flex gap-1 items-center text-sm border border-zinc-500 rounded-md px-2 py-1 transition-colors"
@@ -73,19 +83,29 @@ const Undo = observer(function Undo() {
       <div className="flex items-center gap-1">
         <Loop times={game$.undoLimit.get()}>
           {(i) => (
-            <div
-              key={i}
-              className={cx("size-4 rounded-full", {
-                "bg-green-500": i < undoCount,
-                "bg-zinc-700": i >= undoCount,
-              })}
-            />
+            <Fragment key={i}>
+              {i < undoCount ? (
+                <CircleBackslashIcon className="size-6 text-zinc-600" />
+              ) : (
+                <CircleIcon className="size-6 text-green-500" />
+              )}
+            </Fragment>
           )}
         </Loop>
       </div>
     </div>
   );
 });
+
+function MoveCount() {
+  return (
+    <div className="text-center">
+      <p className="font-bold">
+        Moves: <Memo>{game$.state.moveCount}</Memo>
+      </p>
+    </div>
+  );
+}
 
 const Column = observer(function Column({
   item,

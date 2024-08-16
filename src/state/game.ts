@@ -26,6 +26,7 @@ type Actions = {
   ): void;
   canUndo(): boolean;
   undoPreviousOperation(): void;
+  restart(): void;
 };
 
 export type Column = { id: number; filled: number };
@@ -77,9 +78,20 @@ export const game$ = observable<State & Actions>({
     game$.undoCount.set(game$.undoCount.get() + 1);
     undo();
   },
+
+  restart() {
+    batch(() => {
+      game$.undoCount.set(0);
+      game$.state.moveCount.set(0);
+      game$.status.set("playing");
+      game$.state.columns.set(generateSolvableBoard(game$.dimensions.get()));
+    });
+
+    reset();
+  },
 });
 
-const { undo, undos$ } = undoRedo(game$.state, { limit: 3 });
+const { undo, undos$, reset } = undoRedo(game$.state, { limit: 3 });
 
 function randomOperation(): Operation {
   return operations[Math.floor(Math.random() * operations.length)];
