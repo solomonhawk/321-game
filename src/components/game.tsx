@@ -178,7 +178,7 @@ const Column = observer(function Column({
         {(i) => (
           <motion.div
             key={i}
-            className={cx("box size-8 rounded-sm", {
+            className={cx("box size-8 rounded-sm transition-colors", {
               "bg-white": i < filled && !isWon,
               "bg-green-500": i < filled && isWon,
               "bg-zinc-700": i >= filled,
