@@ -1,20 +1,28 @@
 import { ObservableObject } from "@legendapp/state";
-import { Computed, For, Memo, observer } from "@legendapp/state/react";
+import {
+  Computed,
+  For,
+  Memo,
+  observer,
+  Reactive,
+  useObserveEffect,
+} from "@legendapp/state/react";
 import {
   CircleBackslashIcon,
   CircleIcon,
   ResetIcon,
 } from "@radix-ui/react-icons";
 import cx from "clsx";
+import { motion, stagger, useAnimate } from "framer-motion";
 import { Fragment } from "react/jsx-runtime";
-import { game$ } from "~/state/game";
-import { Loop } from "./loop";
 import {
-  displayOperation,
-  canApplyOperation,
   applyOperation,
+  canApplyOperation,
+  displayOperation,
 } from "~/helpers/game";
+import { game$ } from "~/state/game";
 import { Col } from "~/types/game";
+import { Loop } from "./loop";
 
 export function Game() {
   return (
@@ -29,7 +37,9 @@ export function Game() {
         <Computed>
           {() => (game$.status.get() === "won" ? <Restart /> : <Undo />)}
         </Computed>
+
         <MoveCount />
+
         <Seed />
       </div>
     </div>
@@ -57,46 +67,50 @@ function Restart() {
     <button
       type="button"
       onClick={game$.restart}
-      className="text-zinc-900 bg-green-500 border-transparent hover:bg-green-600 active:bg-green-500 text-sm border border-zinc-500 rounded-md px-2 py-1 transition-colors"
+      className="text-zinc-900 bg-green-500 border-transparent hover:bg-green-600 active:bg-green-500 text-sm border rounded-md px-2 py-1 transition-colors"
     >
       Again
     </button>
   );
 }
 
-const Undo = observer(function Undo() {
-  const canUndo = game$.canUndo();
-  const undoCount = game$.undoCount.get();
-  const isWon = game$.status.get() === "won";
-
+function Undo() {
   return (
     <div className="flex gap-2 items-center justify-between">
-      <button
+      <Reactive.button
         type="button"
         onClick={game$.undoPreviousOperation}
-        disabled={!canUndo || isWon}
+        $disabled={() => !game$.canUndo() || game$.status.get() === "won"}
         className="text-zinc-100 enabled:hover:text-white enabled:hover:bg-zinc-900 enabled:active:bg-zinc-800 disabled:text-zinc-500 disabled:border-zinc-700 flex gap-1 items-center text-sm border border-zinc-500 rounded-md px-2 py-1 transition-colors"
       >
         <ResetIcon />
         Undo
-      </button>
+      </Reactive.button>
 
       <div className="flex items-center gap-1">
-        <Loop times={game$.undoLimit.get()}>
-          {(i) => (
-            <Fragment key={i}>
-              {i < undoCount ? (
-                <CircleBackslashIcon className="size-6 text-zinc-600" />
-              ) : (
-                <CircleIcon className="size-6 text-green-500" />
-              )}
-            </Fragment>
-          )}
-        </Loop>
+        <Memo>
+          {() => {
+            const undoCount = game$.undoCount.get();
+
+            return (
+              <Loop times={game$.undoLimit.get()}>
+                {(i) => (
+                  <Fragment key={i}>
+                    {i < undoCount ? (
+                      <CircleBackslashIcon className="size-6 text-zinc-600" />
+                    ) : (
+                      <CircleIcon className="size-6 text-green-500" />
+                    )}
+                  </Fragment>
+                )}
+              </Loop>
+            );
+          }}
+        </Memo>
       </div>
     </div>
   );
-});
+}
 
 function MoveCount() {
   return (
@@ -130,8 +144,30 @@ const Column = observer(function Column({
     canApplyOperation(dimensions, item.get(), currentOperation) && !isWon;
   const nextColumnState = applyOperation(item.get(), currentOperation);
 
+  const [scope, animate] = useAnimate();
+
+  useObserveEffect(() => {
+    game$.status.onChange(({ value }) => {
+      if (value === "won") {
+        animate(
+          ".box",
+          {
+            scale: 1,
+          },
+          {
+            type: "spring",
+            velocity: -5,
+            bounce: 0.5,
+            delay: stagger(0.05),
+          }
+        );
+      }
+    });
+  });
+
   return (
     <button
+      ref={scope}
       disabled={!isEnabled}
       className="flex flex-col-reverse gap-1 group"
       onClick={() => {
@@ -140,9 +176,9 @@ const Column = observer(function Column({
     >
       <Loop times={dimensions.y}>
         {(i) => (
-          <div
+          <motion.div
             key={i}
-            className={cx("size-8 rounded-sm", {
+            className={cx("box size-8 rounded-sm", {
               "bg-white": i < filled && !isWon,
               "bg-green-500": i < filled && isWon,
               "bg-zinc-700": i >= filled,
