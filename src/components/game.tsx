@@ -1,20 +1,20 @@
 import { ObservableObject } from "@legendapp/state";
 import { Computed, For, Memo, observer } from "@legendapp/state/react";
-import cx from "clsx";
-import {
-  applyOperation,
-  canApplyOperation,
-  type Column,
-  displayOperation,
-  game$,
-} from "~/state/game";
-import { Loop } from "./loop";
 import {
   CircleBackslashIcon,
   CircleIcon,
   ResetIcon,
 } from "@radix-ui/react-icons";
+import cx from "clsx";
 import { Fragment } from "react/jsx-runtime";
+import { game$ } from "~/state/game";
+import { Loop } from "./loop";
+import {
+  displayOperation,
+  canApplyOperation,
+  applyOperation,
+} from "~/helpers/game";
+import { Col } from "~/types/game";
 
 export function Game() {
   return (
@@ -30,6 +30,7 @@ export function Game() {
           {() => (game$.status.get() === "won" ? <Restart /> : <Undo />)}
         </Computed>
         <MoveCount />
+        <Seed />
       </div>
     </div>
   );
@@ -107,10 +108,18 @@ function MoveCount() {
   );
 }
 
+function Seed() {
+  return (
+    <p className="text-center text-xs text-zinc-500">
+      <Computed>{() => game$.seed.get().replace(/^0\./, "")}</Computed>
+    </p>
+  );
+}
+
 const Column = observer(function Column({
   item,
 }: {
-  item: ObservableObject<Column>;
+  item: ObservableObject<Col>;
 }) {
   const previewsEnabled = game$.previews.get();
   const dimensions = game$.dimensions.get();

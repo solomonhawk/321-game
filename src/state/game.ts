@@ -1,39 +1,19 @@
 import { batch, observable, ObservableObject, observe } from "@legendapp/state";
 import { undoRedo } from "~/helpers/undo";
+import Rand from "rand-seed";
+import {
+  nextOperation,
+  isWinningState,
+  canApplyReverseOperation,
+  applyReverseOperation,
+  previousOperation,
+  randomOperation,
+} from "~/helpers/game";
+import { State, Actions, Col, Dimensions, Operation } from "~/types/game";
 
-type Dimensions = {
-  x: number;
-  y: number;
-};
-
-type State = {
-  status: "playing" | "won";
-  previews: boolean;
-  dimensions: Dimensions;
-  undoLimit: number;
-  undoCount: number;
-  state: {
-    moveCount: number;
-    currentOperation: Operation;
-    columns: Column[];
-  };
-};
-
-type Actions = {
-  applyCurrentOperation(
-    column: ObservableObject<Column>,
-    nextColumn: Column
-  ): void;
-  canUndo(): boolean;
-  undoPreviousOperation(): void;
-  restart(): void;
-};
-
-export type Column = { id: number; filled: number };
-
-export const operations = ["add3", "sub2", "sub1"] as const;
-
-export type Operation = (typeof operations)[number];
+const seedRand = new Rand(new Date().toLocaleDateString());
+const initialSeed = seedRand.next().toString();
+const initialRand = new Rand(initialSeed);
 
 export const game$ = observable<State & Actions>({
   /**
@@ -42,21 +22,23 @@ export const game$ = observable<State & Actions>({
   status: "playing",
   previews: true,
   dimensions: {
-    x: 5,
-    y: 7,
+    x: 7,
+    y: 9,
   },
   undoLimit: 3,
   undoCount: 0,
+  seed: initialSeed,
+  rand: initialRand,
   state: {
     moveCount: 0,
     currentOperation: "add3",
-    columns: generateSolvableBoard({ x: 5, y: 7 }),
+    columns: generateSolvableBoard({ x: 7, y: 9 }, initialRand),
   },
 
   /**
    * Actions
    */
-  applyCurrentOperation(column: ObservableObject<Column>, nextColumn: Column) {
+  applyCurrentOperation(column: ObservableObject<Col>, nextColumn: Col) {
     const op = game$.state.currentOperation.get();
 
     batch(() => {
@@ -81,10 +63,18 @@ export const game$ = observable<State & Actions>({
 
   restart() {
     batch(() => {
+      const seed = seedRand.next().toString();
+      const rand = new Rand(seed);
+
+      game$.seed.set(seed);
+      game$.rand.set(rand);
       game$.undoCount.set(0);
-      game$.state.moveCount.set(0);
       game$.status.set("playing");
-      game$.state.columns.set(generateSolvableBoard(game$.dimensions.get()));
+      game$.state.set({
+        currentOperation: "add3",
+        moveCount: 0,
+        columns: generateSolvableBoard(game$.dimensions.get(), rand),
+      });
     });
 
     reset();
@@ -93,101 +83,20 @@ export const game$ = observable<State & Actions>({
 
 const { undo, undos$, reset } = undoRedo(game$.state, { limit: 3 });
 
-function randomOperation(): Operation {
-  return operations[Math.floor(Math.random() * operations.length)];
-}
-
-export function nextOperation(op: Operation): Operation {
-  return operations[(operations.indexOf(op) + 1) % operations.length];
-}
-
-export function previousOperation(op: Operation): Operation {
-  return operations[
-    (operations.indexOf(op) + operations.length - 1) % operations.length
-  ];
-}
-
-export function isWinningState(columns: Column[]) {
-  return new Set(columns.map((c) => c.filled)).size === 1;
-}
-
-export function canApplyOperation(
-  dimensions: Dimensions,
-  column: Column,
-  operation: Operation
-) {
-  switch (operation) {
-    case "add3":
-      return column.filled <= dimensions.y - 3;
-    case "sub2":
-      return column.filled >= 2;
-    case "sub1":
-      return column.filled >= 1;
-  }
-}
-
-export function canApplyReverseOperation(
-  dimensions: Dimensions,
-  column: Column,
-  operation: Operation
-) {
-  switch (operation) {
-    case "add3":
-      return column.filled >= 3;
-    case "sub2":
-      return column.filled <= dimensions.y - 2;
-    case "sub1":
-      return column.filled <= dimensions.y - 1;
-  }
-}
-
-export function applyOperation(column: Column, operation: Operation): Column {
-  switch (operation) {
-    case "add3":
-      return { ...column, filled: column.filled + 3 };
-    case "sub2":
-      return { ...column, filled: column.filled - 2 };
-    case "sub1":
-      return { ...column, filled: column.filled - 1 };
-  }
-}
-
-export function applyReverseOperation(
-  column: Column,
-  operation: Operation
-): Column {
-  switch (operation) {
-    case "add3":
-      return { ...column, filled: column.filled - 3 };
-    case "sub2":
-      return { ...column, filled: column.filled + 2 };
-    case "sub1":
-      return { ...column, filled: column.filled + 1 };
-  }
-}
-
-export function displayOperation(operation: Operation) {
-  switch (operation) {
-    case "add3":
-      return "+3";
-    case "sub2":
-      return "-2";
-    case "sub1":
-      return "-1";
-  }
-}
-
 /**
  * To ensure the game is solvable, we generate a random board by starting with
  * a winning state and applying operations in reverse, ensuring we finish with
  * an operation (sub1) that should be followed by the first allowed operation
  * (add3).
  */
-function generateSolvableBoard({ x, y }: Dimensions): Column[] {
-  let iterations = Math.max(x, 15) + Math.random() * 5;
-  let operation: Operation = randomOperation();
+function generateSolvableBoard({ x, y }: Dimensions, rand: Rand): Col[] {
+  const minIterations = Math.max(x, 15) + rand.next() * 5;
+  const colsModified = new Set();
 
-  const initialY = Math.round(y / 2) + (-1 + Math.floor(Math.random() * 3));
+  let iterations = 0;
+  let operation: Operation = randomOperation(rand);
+
+  const initialY = Math.round(y / 2) + (-1 + Math.floor(rand.next() * 3));
 
   const columns = new Array(x).fill(0).map((_, i) => {
     return {
@@ -197,18 +106,29 @@ function generateSolvableBoard({ x, y }: Dimensions): Column[] {
   });
 
   while (true) {
-    const column = Math.floor(Math.random() * x);
+    const column = Math.floor(rand.next() * x);
 
     if (canApplyReverseOperation({ x, y }, columns[column], operation)) {
       columns[column] = applyReverseOperation(columns[column], operation);
-
+      colsModified.add(column);
       operation = previousOperation(operation);
-      iterations--;
+      iterations++;
 
-      if (operation === "sub1" && iterations < 2) {
+      if (
+        operation === "sub1" &&
+        iterations >= minIterations &&
+        colsModified.size === x
+      ) {
         break;
       }
     }
+  }
+
+  if (import.meta.env.DEV) {
+    console.log(
+      `Generated solvable board in ${iterations} iterations`,
+      columns
+    );
   }
 
   return columns;
