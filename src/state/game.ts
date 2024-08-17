@@ -44,7 +44,7 @@ export const game$ = observable<State & Actions>({
     batch(() => {
       column.set(nextColumn);
       game$.state.currentOperation.set(nextOperation(op));
-      game$.state.moveCount.set(game$.state.moveCount.get() + 1);
+      game$.state.moveCount.set((count) => count + 1);
 
       if (isWinningState(game$.state.columns.get())) {
         game$.status.set("won");
@@ -57,7 +57,7 @@ export const game$ = observable<State & Actions>({
   },
 
   undoPreviousOperation() {
-    game$.undoCount.set(game$.undoCount.get() + 1);
+    game$.undoCount.set((count) => count + 1);
     undo();
   },
 
@@ -66,14 +66,16 @@ export const game$ = observable<State & Actions>({
       const seed = seedRand.next().toString();
       const rand = new Rand(seed);
 
-      game$.seed.set(seed);
-      game$.rand.set(rand);
-      game$.undoCount.set(0);
-      game$.status.set("playing");
-      game$.state.set({
-        currentOperation: "add3",
-        moveCount: 0,
-        columns: generateSolvableBoard(game$.dimensions.get(), rand),
+      game$.assign({
+        seed,
+        rand,
+        undoCount: 0,
+        status: "playing",
+        state: {
+          currentOperation: "add3",
+          moveCount: 0,
+          columns: generateSolvableBoard(game$.dimensions.get(), rand),
+        },
       });
     });
 
