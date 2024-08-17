@@ -13,7 +13,7 @@ import {
   ResetIcon,
 } from "@radix-ui/react-icons";
 import cx from "clsx";
-import { motion, stagger, useAnimate } from "framer-motion";
+import { motion, stagger, transform, useAnimate } from "framer-motion";
 import { Fragment } from "react/jsx-runtime";
 import {
   applyOperation,
@@ -131,12 +131,15 @@ function Seed() {
 }
 
 const Column = observer(function Column({
+  id,
   item,
 }: {
+  id: string;
   item: ObservableObject<Col>;
 }) {
   const previewsEnabled = game$.previews.get();
   const dimensions = game$.dimensions.get();
+  const middle = Math.floor(dimensions.x / 2);
   const filled = item.filled.get();
   const currentOperation = game$.state.currentOperation.get();
   const isWon = game$.status.get() === "won";
@@ -147,20 +150,30 @@ const Column = observer(function Column({
   const [scope, animate] = useAnimate();
 
   useObserveEffect(() => {
-    game$.status.onChange(({ value }) => {
+    game$.status.onChange(async ({ value }) => {
       if (value === "won") {
-        animate(
+        await animate(
           ".box",
           {
             scale: 1,
+            rotate: 90,
           },
           {
             type: "spring",
             velocity: -5,
             bounce: 0.5,
-            delay: stagger(0.05),
+            delay: stagger(0.05, {
+              startDelay: transform(
+                Math.abs(Number(id) - middle),
+                [0, middle],
+                [0, middle / 20]
+              ),
+              from: "center",
+            }),
           }
         );
+
+        animate(".box", { rotate: 0 }, { duration: 0 });
       }
     });
   });
